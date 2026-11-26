@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AquaGrid Network Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a utility engineer's control-room tool — calm, exact, working.
+   IDEA: the SCADA mimic panel: a live schematic of the pipe network you can operate.
+   PICTURE: the pipe network itself, full width on a water-blue field, searched live.
+   COLOUR and TYPE: water blue field, white pipes, cyan for explored, leak red-orange; Barlow (signage lettering).
+   LAYOUT: schematic + readout first, then evidence sections that mirror the syllabus. */
+:root{color-scheme:light dark;
+--bg:light-dark(#ffffff,#0b1622);--ink:light-dark(#0d1b2a,#e4edf5);--mut:light-dark(#4d5e70,#9bb0c4);
+--line:light-dark(#d9e2ea,#1f3346);--card:light-dark(#f3f7fa,#102131);
+--hero:light-dark(#0a5c9e,#06243f);--hero2:light-dark(#084b82,#041a2e);
+--cyan:#7ff0ff;--leak:#ff5a36;--blue:light-dark(#0a5c9e,#5fb4ff);--teal:light-dark(#0e8a8a,#3fd1c4)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Barlow,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:"Barlow Condensed",Barlow,sans-serif;line-height:1.05;text-wrap:balance;margin:0 0 .4em}
+h1{font-size:clamp(34px,5vw,52px)}h2{font-size:clamp(28px,3.4vw,38px)}h3{font-size:21px}
+p{max-width:68ch;margin:0 0 1em}
+.band{padding:clamp(28px,4vw,64px) max(5vw,16px)}.wrap{max-width:1240px;margin:0 auto}
+.fig{position:relative;min-height:240px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+pre,.scroll{overflow-x:auto}code{overflow-wrap:anywhere}html{scroll-padding-top:72px}
+nav{display:flex;gap:6px 18px;flex-wrap:wrap;padding:12px max(5vw,16px);background:var(--hero2);font-size:15px}
+nav a{color:#fff;opacity:.85;text-decoration:none;padding:6px 0}nav a:hover,nav a:focus-visible{opacity:1;text-decoration:underline}
+nav b{color:#fff;margin-right:auto;font-family:"Barlow Condensed";font-size:20px}
+@media(min-width:900px){nav{position:sticky;top:0;z-index:5}}
+.hero{background:var(--hero);color:#fff}.hero p{color:#d6e8f7}
+.deck{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(0,1fr);gap:24px;align-items:start}
+@media(max-width:900px){.deck{grid-template-columns:minmax(0,1fr)}}
+#net{aspect-ratio:1000/560;border-radius:10px;background:var(--hero2)}
+.pipe{stroke:rgba(255,255,255,.3);stroke-linecap:round}.pipe.on{stroke:#fff}
+.pipe.leak{stroke:var(--leak);stroke-dasharray:2 14}.hit{stroke:transparent;cursor:pointer}
+.nd{fill:var(--hero2);stroke:#fff;cursor:pointer}.nd.x{fill:var(--cyan);stroke:var(--cyan)}.nd.goal{stroke:var(--cyan);stroke-width:5}
+.lb{fill:#fff;font-family:Barlow;font-weight:600}.lk{fill:var(--leak);font-weight:700}
+.panel{background:var(--hero2);border-radius:10px;padding:18px}
+.panel label{display:block;font-size:14px;color:#b9d6ee;margin:12px 0 6px}
+.algs{display:flex;flex-wrap:wrap;gap:6px}
+button,select{font:500 15px Barlow,sans-serif;min-height:44px;border-radius:8px;padding:8px 14px;cursor:pointer}
+.hero button,.hero select{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.45)}
+.hero select{width:100%;font-size:16px}.hero select option{color:#000}
+.hero button[aria-pressed=true]{background:#fff;color:var(--hero2);border-color:#fff}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}
+.ro{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.ro div{border-top:1px solid rgba(255,255,255,.25);padding-top:6px}
+.ro small{display:block;color:#b9d6ee;font-size:13px}.ro strong{font-size:26px;font-family:"Barlow Condensed";white-space:nowrap}
+#r-path{font-size:14px;color:#d6e8f7;margin-top:10px;min-height:2.6em}
+.hint{font-size:14px;color:#b9d6ee;margin:10px 0 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{background:var(--blue);color:#fff;border:0}.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.ghost[aria-pressed=true]{border-color:var(--blue);color:var(--blue)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--mut);font-size:14px}td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.alt{background:var(--card)}
+.two{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:32px}
+@media(max-width:900px){.two{grid-template-columns:minmax(0,1fr)}}
+.bar{height:12px;background:var(--line);border-radius:6px;overflow:hidden;margin:4px 0 14px}
+.bar i{display:block;height:100%;background:var(--teal)}.bar i.bad{background:var(--leak)}
+.ok{color:var(--teal);font-weight:600}.no{color:var(--leak);font-weight:600}
+#conv{aspect-ratio:16/9;min-height:260px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;color:var(--mut)}
+.legend span::before{content:"";display:inline-block;width:18px;height:3px;margin-right:6px;vertical-align:middle;background:var(--c)}
+.grid{display:grid;grid-template-columns:4.6em repeat(12,minmax(0,1fr));gap:3px;font-size:13px;margin-top:10px}
+.grid div{min-height:26px;border-radius:3px;display:flex;align-items:center;justify-content:center}
+.grid .c{background:color-mix(in srgb,var(--blue) calc(var(--l)*30%),var(--card))}
+.grid .c.u{outline:2px solid var(--leak);outline-offset:-2px}
+.grid .h{justify-content:flex-start;color:var(--mut)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:var(--card);border-radius:10px;padding:18px}.card h3{color:var(--blue)}
+.card ul{margin:0;padding-left:1.1em}.card li{margin-bottom:4px}
+.flow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,2.2fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center}
+.flow .box{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px;font-size:15px}
+.flow .box b{display:block;font-family:"Barlow Condensed";font-size:19px;color:var(--blue)}
+.flow .ar{color:var(--mut);font-size:22px;text-align:center}
+.tools{display:grid;gap:8px}
+@media(max-width:900px){.flow{grid-template-columns:minmax(0,1fr)}.flow .ar{transform:rotate(90deg)}}
+.days{list-style:none;padding:0;margin:0}.days li{display:grid;grid-template-columns:6.5em minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.days b{font-family:"Barlow Condensed";font-size:20px;color:var(--blue);white-space:nowrap}.days span{color:var(--mut);display:block;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips span{border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:14px}
+.chat{border:1.5px solid var(--line);border-radius:12px;padding:16px;max-width:920px}
+.log{max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-bottom:6px}
+.m{padding:10px 14px;border-radius:12px;max-width:88%;white-space:pre-wrap;overflow-wrap:anywhere}
+.m.user{align-self:flex-end;background:var(--blue);color:#fff}.m.bot{background:var(--card)}
+.m.tool{font-size:13px;color:var(--mut);padding:0 4px}.m.review{border:1.5px solid var(--leak);background:var(--card)}
+.m.review p{margin:0 0 8px}
+.sugs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+#cf{display:flex;gap:8px}#ci{flex:1;font:16px Barlow,sans-serif;min-height:44px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+#ci:focus-visible{outline:3px solid var(--blue);outline-offset:1px}
+button:disabled,input:disabled{opacity:.5;cursor:not-allowed}
+.keyrow{display:flex;flex-wrap:wrap;gap:8px}.keyrow:not([hidden]){display:flex}.keyrow[hidden]{display:none}.keyrow input{flex:1 1 200px;font:16px Barlow,sans-serif;min-height:44px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+footer{background:var(--hero2);color:#b9d6ee;font-size:14px}
+.note{font-size:14px;color:var(--mut)}
+@media(max-width:600px){table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:8em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;white-space:normal;color:var(--mut)}.stack td:empty{display:none}.grid{font-size:11px;grid-template-columns:3.4em repeat(12,minmax(0,1fr))}}
+</style><script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script></head>
+<body>
+<nav class="scroll" aria-label="Sections"><b>AquaGrid</b><a href="#planner">Planner</a><a href="#ask">Ask the agent</a><a href="#compare">Search comparison</a><a href="#valves">Valve scheduling</a><a href="#agent">Agent design</a><a href="#architecture">Architecture</a><a href="#plan">Plan</a><a href="#applications">Applications</a></nav>
+
+<header class="band hero" id="planner"><div class="wrap">
+<h1>AquaGrid: Water Distribution Network Planner</h1>
+<p>An AI planner that finds the cheapest flow path from reservoir to demand zone, isolates leaking pipes and schedules valves so pressure targets are met. Pick an algorithm, click a zone to make it the goal, click a pipe to isolate it as a leak.</p>
+<div class="deck">
+ <div class="fig" id="net"><svg id="svg" viewBox="0 0 1000 560" role="img" aria-label="Pipe network schematic"></svg></div>
+ <div class="panel">
+  <label>Search algorithm</label><div class="algs" id="algs"></div>
+  <label for="goal">Destination</label><select id="goal"></select>
+  <div class="row"><button id="run">Run search</button><button id="clear">Restore all pipes</button></div>
+  <div class="ro"><div><small>Nodes expanded</small><strong id="r-exp">–</strong></div><div><small>Path cost (head-loss units)</small><strong id="r-cost">–</strong></div></div>
+  <div id="r-path"></div>
+  <p class="hint">Pipe cost = length × roughness factor. Cyan nodes were expanded; the white line is the chosen flow path.</p>
+ </div>
+</div></div></header>
+
+<section class="band" id="ask"><div class="wrap">
+<h2>Ask the AquaGrid agent</h2>
+<p>The agent answers engineers' questions by calling the planner's tools: search, algorithm comparison, heuristic checks, valve optimisation and leak isolation. Isolating a pipe is a risky action, so you approve or reject it as the human reviewer. The map above updates as it works.</p>
+<div class="chat">
+ <div class="log" id="log" aria-live="polite"></div>
+ <div class="sugs" id="sugs"></div>
+ <form id="cf"><input id="ci" autocomplete="off" placeholder="e.g. There's a leak near J9 – keep Zone C supplied" aria-label="Message the agent"><button class="btn" id="cs">Send</button></form>
+ <p class="note" id="cnote"></p>
+ <form id="keyrow" class="keyrow" hidden><input id="gk" type="password" autocomplete="off" placeholder="Gemini API key" aria-label="Gemini API key"><input id="gm" aria-label="Gemini model"><button class="btn">Use key</button><button type="button" class="btn ghost" id="kclear">Forget key</button></form>
+</div>
+</div></section>
+
+<section class="band" id="compare"><div class="wrap">
+<h2>Informed search expands fewer junctions for the same optimal route</h2>
+<p id="cmp-sub" class="note"></p>
+<div class="two">
+ <div class="scroll"><table class="stack"><thead><tr><th>Algorithm</th><th class="n">Nodes expanded</th><th class="n">Path cost</th><th class="n">Pipes</th><th class="n">Time (µs)</th><th>Optimal</th></tr></thead><tbody id="cmp"></tbody></table></div>
+ <div><h3>Heuristic evaluation</h3><p class="note">Each heuristic is compared with the true cost-to-goal h* at every reachable node. Admissible means it never overestimates.</p><div id="heur"></div></div>
+</div>
+<div class="row"><button class="btn" id="runall">Re-run comparison</button></div>
+</div></section>
+
+<section class="band alt" id="valves"><div class="wrap">
+<h2>Simulated annealing schedules valves cheaper than a fixed setting</h2>
+<p>Six zone valves are set to closed, ⅓, ⅔ or full for each of twelve two-hour slots. The cost adds unmet demand, over-pressure leakage, pumping energy at the slot's tariff, pump-capacity overruns and valve switching. Hill climbing and simulated annealing start from the same random schedule; the naive baseline keeps every valve at ⅔.</p>
+<div class="two">
+ <div><div class="fig" id="conv"><svg id="csvg" aria-label="Convergence plot"></svg></div>
+ <div class="legend"><span style="--c:var(--leak)">Hill climbing</span><span style="--c:var(--blue)">Simulated annealing</span><span style="--c:var(--mut)">Naive baseline</span></div>
+ <div class="row"><button class="btn" id="reseed">Run again with a new seed</button></div></div>
+ <div><table><thead><tr><th>Method</th><th class="n">Cost</th><th class="n">Targets met</th></tr></thead><tbody id="vt"></tbody></table>
+ <h3 style="margin-top:20px">Schedule</h3><div class="row" id="vsel"></div>
+ <div class="grid" id="grid"></div><p class="note" style="margin-top:8px">Darker = more open. Red outline = zone below its pressure target.</p></div>
+</div>
+<p class="note">Demand profile, tariffs and capacity are sample figures for demonstration.</p>
+</div></section>
+
+<section class="band" id="agent"><div class="wrap">
+<h2>PEAS description and environment</h2>
+<div class="cards">
+ <div class="card"><h3>Performance</h3><ul><li>Pressure targets met in every zone</li><li>Leaks located in 8 of 10 cases</li><li>Low pumping energy and head loss</li><li>Few valve switches</li></ul></div>
+ <div class="card"><h3>Environment</h3><ul><li>Reservoirs, treatment plant, pumps</li><li>Pipes, junctions, valves</li><li>Demand zones and consumers</li><li>Utility engineers</li></ul></div>
+ <div class="card"><h3>Actuators</h3><ul><li>Valve open/close commands</li><li>Pump schedules</li><li>Recommended flow routes</li><li>Alerts and plain-language explanations</li></ul></div>
+ <div class="card"><h3>Sensors</h3><ul><li>Pressure and flow sensors (SCADA)</li><li>Consumer meter readings</li><li>Leak reports from the field</li><li>GIS network map</li></ul></div>
+</div>
+<div class="scroll" style="margin-top:24px"><table class="stack"><thead><tr><th>Property</th><th>Real network</th><th>Search model used here</th></tr></thead><tbody>
+<tr><td>Observable</td><td>Partially: sensors cover few junctions</td><td>Fully: whole graph is known</td></tr>
+<tr><td>Deterministic</td><td>Stochastic: demand and leaks vary</td><td>Deterministic pipe costs</td></tr>
+<tr><td>Static</td><td>Dynamic: pressure changes while planning</td><td>Static during one search</td></tr>
+<tr><td>Discrete</td><td>Continuous pressures and flows</td><td>Discrete junctions and valve levels</td></tr>
+<tr><td>Agents</td><td>Multi-agent (planner, CSP, LLM, reviewer)</td><td>Single agent</td></tr>
+<tr><td>Episodic</td><td>Sequential: valve actions affect later slots</td><td>Sequential path building</td></tr>
+</tbody></table></div>
+</div></section>
+
+<section class="band alt" id="architecture"><div class="wrap">
+<h2>A LangGraph workflow routes each request to the right tool</h2>
+<div class="flow">
+ <div class="box"><b>Request</b>Engineer asks a question or reports a fault</div><div class="ar">→</div>
+ <div class="box"><b>LangGraph router</b>Classifies the request</div><div class="ar">→</div>
+ <div class="tools">
+  <div class="box"><b>Search planner</b>Flow paths with BFS, UCS, A* (NetworkX)</div>
+  <div class="box"><b>CSP solver</b>Valve operation schedules (OR-Tools)</div>
+  <div class="box"><b>Knowledge base</b>Safety and quality rules (ChromaDB, SWI-Prolog)</div>
+  <div class="box"><b>LLM agent</b>Explains network status</div>
+ </div><div class="ar">→</div>
+ <div class="box"><b>Human reviewer</b>Approves risky actions</div><div class="ar">→</div>
+ <div class="box"><b>Metrics dashboard</b>Evaluation logs in Streamlit</div>
+</div>
+</div></section>
+
+<section class="band" id="plan"><div class="wrap">
+<div class="two">
+<div><h2>28 days, five modules</h2><ol class="days">
+<li><b>Days 1–2</b><div>Setup<span>Install tools, create repository, API keys, first commit</span></div></li>
+<li><b>Days 3–6</b><div>Introduction and searching decisions<span>PEAS, BFS/DFS/UCS, greedy and A*, local search</span></div></li>
+<li><b>Days 7–10</b><div>Constraint satisfaction and AI reasoning<span>Valve scheduling CSP, safety rules in Prolog</span></div></li>
+<li><b>Days 11–15</b><div>Introduction to AI agents<span>Agent loop, tools, memory</span></div></li>
+<li><b>Days 16–19</b><div>Frameworks for building agents<span>LangGraph, AutoGen, CrewAI</span></div></li>
+<li><b>Days 20–23</b><div>Ethics, authentic intelligence and trends<span>Fairlearn, SHAP, LIME, human review</span></div></li>
+<li><b>Days 24–26</b><div>Integration<span>End-to-end run, defect fixing, metrics, tag v1.0</span></div></li>
+<li><b>Days 27–28</b><div>Documentation<span>Report, PPT, demo video, declaration</span></div></li></ol></div>
+<div><h2>Technology stack</h2><div class="chips">
+<span>Python 3.10+</span><span>NetworkX</span><span>OSMnx</span><span>Folium</span><span>OR-Tools</span><span>python-constraint</span><span>SWI-Prolog</span><span>LangChain</span><span>LangGraph</span><span>AutoGen</span><span>CrewAI</span><span>ChromaDB</span><span>Streamlit</span><span>Gemini / OpenAI API</span><span>Gymnasium</span><span>PettingZoo</span><span>Fairlearn</span><span>SHAP</span><span>LIME</span><span>Git and GitHub</span></div>
+<h3 style="margin-top:24px">Success targets</h3><ul><li>Pressure targets met</li><li>Leaks located in 8 of 10 cases</li></ul></div>
+</div>
+<h2 style="margin-top:32px">Phase 1 syllabus coverage</h2>
+<div class="scroll"><table class="stack"><thead><tr><th>ID</th><th>Topic</th><th>What AquaGrid does</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>1.1</td><td>Foundations, agents and environments</td><td>PEAS description and environment classification</td><td><a href="#agent">PEAS section</a></td></tr>
+<tr><td>1.2</td><td>Problem-solving agents</td><td>States = junctions, actions = open a pipe, transition = move along it, goal = demand zone, path cost = head loss</td><td><a href="#planner">Planner</a></td></tr>
+<tr><td>1.3</td><td>Uninformed search</td><td>BFS, DFS and uniform-cost search with nodes expanded, time and cost</td><td><a href="#compare">Comparison table</a></td></tr>
+<tr><td>1.4</td><td>Informed search and heuristics</td><td>Greedy and A* with Euclidean and Manhattan heuristics; admissibility tested</td><td><a href="#compare">Heuristic chart</a></td></tr>
+<tr><td>1.5</td><td>Local search and optimisation</td><td>Hill climbing and simulated annealing against a naive baseline</td><td><a href="#valves">Convergence plot</a></td></tr>
+<tr><td>1.6</td><td>Applications of search</td><td>Mapping to navigation, robot vacuums, warehouse robots and delivery routing</td><td><a href="#applications">Application note</a></td></tr>
+</tbody></table></div>
+</div></section>
+
+<section class="band alt" id="applications"><div class="wrap">
+<h2>The same search ideas run other real systems</h2>
+<div class="scroll"><table class="stack"><thead><tr><th>Application</th><th>Search idea</th><th>Where AquaGrid resembles it</th></tr></thead><tbody>
+<tr><td>Navigation apps</td><td>A* over a road graph with distance heuristic</td><td>Junctions are intersections; head loss is travel time</td></tr>
+<tr><td>Robot vacuum</td><td>DFS-style coverage of every reachable cell</td><td>Inspection crews sweeping every pipe in a district</td></tr>
+<tr><td>Warehouse robots</td><td>Multi-agent path finding with conflicts</td><td>Several zones competing for limited pump capacity</td></tr>
+<tr><td>Delivery routing</td><td>Uniform-cost search and local search over routes</td><td>Optimising valve schedules over a day, like routes over stops</td></tr>
+</tbody></table></div>
+</div></section>
+
+<footer class="band"><div class="wrap">AquaGrid · Project P72 · Foundations of AI and Authentic Intelligence integrated project · Domain: utilities · Team of up to 4. The network, pipe costs and demand figures are sample data built for this demonstration.</div></footer>
+
+<script>
+{
+const NODES={R:[70,280,'Reservoir'],T:[190,280,'Treatment'],J1:[300,150],J2:[300,410],J3:[430,80],J4:[430,260],J5:[430,460],J6:[560,170],J7:[560,350],J8:[690,80],J9:[690,260],J10:[690,470],J11:[820,170],J12:[820,370],Z1:[940,80,'Zone N'],Z2:[940,270,'Zone C'],Z3:[940,470,'Zone S']};
+const dist=(a,b)=>Math.hypot(NODES[a][0]-NODES[b][0],NODES[a][1]-NODES[b][1]);
+const EDGES=[['R','T',1],['T','J1',1.1],['T','J2',1],['J1','J3',1.3],['J1','J4',1],['J2','J4',1.5],['J2','J5',1],['J3','J6',1],['J3','J8',1.6],['J4','J6',1.2],['J4','J7',1],['J5','J7',1.4],['J5','J10',1.1],['J6','J9',1],['J6','J8',1.1],['J7','J9',1.3],['J7','J10',1],['J8','J11',1],['J9','J11',1.2],['J9','J12',1],['J10','J12',1.5],['J11','Z1',1],['J11','Z2',1.3],['J12','Z2',1],['J12','Z3',1.2],['J10','Z3',1.8],['J8','Z1',1.4]].map(([a,b,f])=>({a,b,f,c:+(dist(a,b)/100*f).toFixed(2)}));
+const ALGS=[['bfs','BFS'],['dfs','DFS'],['ucs','Uniform-cost'],['greedy','Greedy (h1)'],['astar1','A* (h1 Euclidean)'],['astar2','A* (h2 Manhattan)']];
+const closed=new Set();let goal='Z3',alg='astar1',vis=new Set(),pathE=new Set(),timer=null;
+const $=id=>document.getElementById(id);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const adj=()=>{const m={};for(const k in NODES)m[k]=[];EDGES.forEach((e,i)=>{if(closed.has(i))return;m[e.a].push([e.b,e.c]);m[e.b].push([e.a,e.c])});for(const k in m)m[k].sort((x,y)=>x[0].localeCompare(y[0],undefined,{numeric:true}));return m};
+const h1=g=>n=>dist(n,g)/100;
+const h2=g=>n=>(Math.abs(NODES[n][0]-NODES[g][0])+Math.abs(NODES[n][1]-NODES[g][1]))/100;
+const edgeIdx=(a,b)=>EDGES.findIndex((e,i)=>!closed.has(i)&&((e.a===a&&e.b===b)||(e.a===b&&e.b===a)));
+function search(id,s,g,A){
+ const par={[s]:null},order=[];let found=false;
+ if(id==='bfs'||id==='dfs'){
+  const fr=[s],seen=new Set(id==='bfs'?[s]:[]);
+  while(fr.length){const n=id==='bfs'?fr.shift():fr.pop();
+   if(id==='dfs'){if(seen.has(n))continue;seen.add(n)}
+   order.push(n);if(n===g){found=true;break}
+   const nb=A[n].map(x=>x[0]);
+   for(const m of(id==='dfs'?nb.slice().reverse():nb)){if(seen.has(m))continue;par[m]=n;fr.push(m);if(id==='bfs')seen.add(m)}}
+ }else{
+  const H1=h1(g),H2=h2(g);
+  const pri={ucs:(c,m)=>c,greedy:(c,m)=>H1(m),astar1:(c,m)=>c+H1(m),astar2:(c,m)=>c+H2(m)}[id];
+  const gc={[s]:0},done=new Set(),pq=[[pri(0,s),s]];
+  while(pq.length){pq.sort((a,b)=>a[0]-b[0]);const n=pq.shift()[1];if(done.has(n))continue;done.add(n);order.push(n);if(n===g){found=true;break}
+   for(const[m,c]of A[n]){if(done.has(m))continue;const ng=gc[n]+c;if(gc[m]===undefined||ng<gc[m]){gc[m]=ng;par[m]=n;pq.push([pri(ng,m),m])}}}
+ }
+ if(!found)return{order,path:null,cost:Infinity};
+ const path=[];for(let n=g;n!==null;n=par[n])path.unshift(n);
+ let cost=0;for(let i=1;i<path.length;i++)cost+=EDGES[edgeIdx(path[i-1],path[i])].c;
+ return{order,path,cost};
+}
+function hstar(g,A){const d={[g]:0},done=new Set(),pq=[[0,g]];while(pq.length){pq.sort((a,b)=>a[0]-b[0]);const[c,n]=pq.shift();if(done.has(n))continue;done.add(n);for(const[m,w]of A[n]){if(d[m]===undefined||c+w<d[m]){d[m]=c+w;pq.push([d[m],m])}}}return d}
+const svg=$('svg');
+function draw(){
+ const W=svg.clientWidth||1000,k=Math.max(1,1000/W*.62),fs=13*k,r=9*k;let h='';
+ EDGES.forEach((e,i)=>{const[x1,y1]=NODES[e.a],[x2,y2]=NODES[e.b],cl=closed.has(i),on=pathE.has(i);
+  h+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="pipe${cl?' leak':on?' on':''}" style="stroke-width:${(on?7:cl?6:5)*k}"/>`;
+  if(cl)h+=`<text x="${(x1+x2)/2}" y="${(y1+y2)/2+fs*.35}" text-anchor="middle" class="lk" style="font-size:${fs*1.4}px">×</text>`;
+  h+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="hit" data-e="${i}" style="stroke-width:${22*k}"><title>${e.a}–${e.b}: cost ${e.c} (roughness ${e.f})${cl?' · isolated':''}</title></line>`});
+ for(const id in NODES){const[x,y,name]=NODES[id],c=`nd${vis.has(id)?' x':''}${id===goal?' goal':''}`;
+  if(id==='R')h+=`<rect x="${x-r*1.6}" y="${y-r*1.6}" width="${r*3.2}" height="${r*3.2}" rx="${r*.4}" class="${c}" style="stroke-width:${2*k}"/>`;
+  else h+=`<circle cx="${x}" cy="${y}" r="${id[0]==='Z'?r*1.5:r}" class="${c}" data-n="${id}" style="stroke-width:${id===goal?4*k:2*k}"><title>${id}</title></circle>`;
+  const below=id==='R'||id==='T'||id[0]==='Z';
+  h+=`<text x="${x}" y="${below?y+r*(id==='R'?1.6:1.5)+fs*1.2:y-r-fs*.45}" text-anchor="middle" class="lb" style="font-size:${fs}px">${name||id}</text>`}
+ svg.innerHTML=h;
+}
+new ResizeObserver(draw).observe(svg);
+$('algs').innerHTML=ALGS.map(([id,n])=>`<button data-a="${id}" aria-pressed="${id===alg}">${n}</button>`).join('');
+$('goal').innerHTML=Object.keys(NODES).filter(n=>n!=='R').map(n=>`<option value="${n}"${n===goal?' selected':''}>${NODES[n][2]?NODES[n][2]+' ('+n+')':'Junction '+n}</option>`).join('');
+function runOne(){
+ clearTimeout(timer);const res=search(alg,'R',goal,adj());vis=new Set();pathE=new Set();
+ const fin=()=>{if(res.path)for(let i=1;i<res.path.length;i++)pathE.add(edgeIdx(res.path[i-1],res.path[i]));
+  $('r-exp').textContent=res.order.length;$('r-cost').textContent=res.path?res.cost.toFixed(2):'—';
+  $('r-path').textContent=res.path?'Route: '+res.path.join(' → '):'No route: isolated pipes cut this zone off from the reservoir.';draw()};
+ $('r-exp').textContent='…';$('r-cost').textContent='…';$('r-path').textContent='';
+ if(reduce){res.order.forEach(n=>vis.add(n));fin();return}
+ let i=0;const step=()=>{if(i<res.order.length){vis.add(res.order[i++]);$('r-exp').textContent=i;draw();timer=setTimeout(step,110)}else fin()};step();
+}
+function compare(){
+ const A=adj(),rows=ALGS.map(([id,n])=>{const res=search(id,'R',goal,A);const t0=performance.now();for(let i=0;i<300;i++)search(id,'R',goal,A);return{n,res,us:(performance.now()-t0)/300*1000}});
+ const best=rows[2].res.cost;
+ $('cmp-sub').textContent=`Reservoir to ${NODES[goal][2]||goal}${closed.size?`, with ${closed.size} pipe${closed.size>1?'s':''} isolated`:''}. Change the destination or isolate pipes above and this table updates.`;
+ $('cmp').innerHTML=rows.map(({n,res,us})=>`<tr><td>${n}</td><td class="n">${res.order.length}</td><td class="n">${res.path?res.cost.toFixed(2):'—'}</td><td class="n">${res.path?res.path.length-1:'—'}</td><td class="n">${us.toFixed(1)}</td><td>${!res.path?'No route':Math.abs(res.cost-best)<1e-6?'<span class="ok">Yes</span>':'<span class="no">No</span>'}</td></tr>`).join('');
+ const hs=hstar(goal,A),nodes=Object.keys(hs).filter(n=>n!==goal);
+ $('heur').innerHTML=[['h1 · Euclidean distance',h1(goal)],['h2 · Manhattan distance',h2(goal)]].map(([name,f])=>{
+  const over=nodes.filter(n=>f(n)>hs[n]+1e-9).length,ratio=nodes.reduce((s,n)=>s+Math.min(1.5,f(n)/hs[n]),0)/nodes.length;
+  return `<p style="margin:0"><b>${name}</b>: ${over?`<span class="no">overestimates at ${over} of ${nodes.length} nodes</span>`:`<span class="ok">admissible at all ${nodes.length} nodes</span>`}</p><div class="note">Average h / h* = ${ratio.toFixed(2)}</div><div class="bar"><i class="${over?'bad':''}" style="width:${Math.min(100,ratio/1.5*100)}%"></i></div>`}).join('')+'<p class="note">Bars run to 1.5. Closer to 1 is better informed; above 1 breaks the optimality guarantee of A*.</p>';
+}
+$('algs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;alg=b.dataset.a;document.querySelectorAll('#algs button').forEach(x=>x.setAttribute('aria-pressed',x===b));runOne()});
+$('goal').addEventListener('change',e=>{goal=e.target.value;runOne();compare()});
+$('run').addEventListener('click',runOne);
+$('clear').addEventListener('click',()=>{closed.clear();runOne();compare()});
+$('runall').addEventListener('click',compare);
+svg.addEventListener('click',e=>{const t=e.target;
+ if(t.dataset.e!==undefined){const i=+t.dataset.e;closed.has(i)?closed.delete(i):closed.add(i);runOne();compare()}
+ else if(t.dataset.n){goal=t.dataset.n;$('goal').value=goal;runOne();compare()}});
+runOne();compare();
+
+/* Valve scheduling */
+const Z=['North','Central','South','East','West','Hill'],base=[1,.8,1.2,.6,.9,.7];
+const prof=[.35,.3,.45,.9,1,.8,.65,.7,.85,1,.75,.5],tariff=[.6,.6,.8,1.2,1.4,1.1,1,1,1.1,1.4,1.2,.8];
+const need=base.map(b=>prof.map(p=>b*p)),T=12,V=6;
+function cost(x){let c=0;for(let t=0;t<T;t++){let s=0;for(let z=0;z<V;z++){const L=x[z][t],p=L*.4,d=need[z][t];c+=10*Math.max(0,d-p)+4*Math.max(0,p-d);s+=L;if(t)c+=.5*Math.abs(L-x[z][t-1])}c+=s*tariff[t]*.3;if(s>12)c+=20*(s-12)}return c}
+const met=x=>{let m=0;for(let z=0;z<V;z++)for(let t=0;t<T;t++){const p=x[z][t]*.4,d=need[z][t];if(p>=d-.05&&p-d<=.4)m++}return m};
+const rng=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+let seed=7,sched={},vsel='sa';
+function optimise(){
+ const R=rng(seed),init=Z.map(()=>prof.map(()=>Math.floor(R()*4))),N=4000;
+ const go=sa=>{let x=init.map(r=>r.slice()),c=cost(x),best=c,bx=x,trace=[];const T0=4,a=Math.pow(.01/T0,1/N);let temp=T0;
+  for(let i=0;i<N;i++){const z=Math.floor(R()*V),t=Math.floor(R()*T),d=R()<.5?-1:1,L=x[z][t]+d;
+   if(L>=0&&L<=3){const y=x.map(r=>r.slice());y[z][t]=L;const cy=cost(y),dc=cy-c;
+    if(dc<0||(sa&&R()<Math.exp(-dc/temp))){x=y;c=cy;if(c<best){best=c;bx=x}}}
+   temp*=a;if(i%25===0)trace.push(best)}
+  trace.push(best);return{x:bx,c:best,trace}};
+ const fixed=Z.map(()=>prof.map(()=>2));
+ sched={hc:go(false),sa:go(true),base:{x:fixed,c:cost(fixed)},init:cost(init)};
+ $('vt').innerHTML=[['Naive baseline (all ⅔)','base'],['Hill climbing','hc'],['Simulated annealing','sa']].map(([n,k])=>`<tr><td>${n}</td><td class="n">${sched[k].c.toFixed(1)}</td><td class="n">${met(sched[k].x)} / 72</td></tr>`).join('');
+ drawConv();drawGrid();
+}
+const csvg=$('csvg');
+function drawConv(){
+ if(!sched.sa)return;const W=csvg.clientWidth,H=csvg.clientHeight;if(!W)return;
+ const pl=W<520?36:48,pr=12,pt=14,pb=30,all=[...sched.hc.trace,...sched.sa.trace,sched.base.c];
+ const ymax=Math.min(sched.init,Math.max(...all)*1.05),ymin=Math.min(...all)*.95,n=sched.sa.trace.length-1;
+ const X=i=>pl+i/n*(W-pl-pr),Y=v=>pt+(1-(Math.min(v,ymax)-ymin)/(ymax-ymin))*(H-pt-pb);
+ const line=(tr,col)=>`<polyline fill="none" stroke="${col}" stroke-width="2.5" points="${tr.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ')}"/>`;
+ let h='',ticks=4;for(let i=0;i<=ticks;i++){const v=ymin+(ymax-ymin)*i/ticks;h+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end" font-size="12" fill="var(--mut)">${v.toFixed(0)}</text>`}
+ h+=`<text x="${W-pr}" y="${H-8}" text-anchor="end" font-size="12" fill="var(--mut)">iteration 4,000</text><text x="${pl}" y="${H-8}" font-size="12" fill="var(--mut)">0</text>`;
+ h+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(sched.base.c)}" y2="${Y(sched.base.c)}" stroke="var(--mut)" stroke-width="2" stroke-dasharray="6 5"/>`;
+ h+=line(sched.hc.trace,'var(--leak)')+line(sched.sa.trace,'var(--blue)');
+ csvg.innerHTML=h;
+}
+new ResizeObserver(drawConv).observe(csvg);
+function drawGrid(){
+ const x=sched[vsel].x;let h='<div class="h"></div>'+prof.map((_,t)=>`<div class="h" style="justify-content:center">${String(t*2).padStart(2,'0')}</div>`).join('');
+ Z.forEach((z,i)=>{h+=`<div class="h">${z}</div>`+x[i].map((L,t)=>{const u=L*.4<need[i][t]-.05;return`<div class="c${u?' u':''}" style="--l:${L}" title="${z}, ${t*2}:00 · level ${L}/3 · need ${need[i][t].toFixed(2)}"></div>`}).join('')});
+ $('grid').innerHTML=h;
+}
+$('vsel').innerHTML=[['sa','Annealing'],['hc','Hill climbing'],['base','Baseline']].map(([k,n])=>`<button class="btn ghost" data-k="${k}" aria-pressed="${k===vsel}">${n}</button>`).join('');
+$('vsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;vsel=b.dataset.k;document.querySelectorAll('#vsel button').forEach(y=>y.setAttribute('aria-pressed',y===b));drawGrid()});
+$('reseed').addEventListener('click',()=>{seed=Math.floor(Math.random()*1e6);optimise()});
+optimise();
+
+/* Agent chat */
+const setAlg=id=>{alg=id;document.querySelectorAll('#algs button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.a===id))};
+const setGoal=g=>{g=String(g||'').toUpperCase();if(!NODES[g]||g==='R')throw new Error('Unknown destination '+g+'. Use T, J1–J12 or Z1–Z3.');goal=g;$('goal').value=g;return g};
+const pipeIdx=(a,b)=>{a=String(a).toUpperCase();b=String(b).toUpperCase();const i=EDGES.findIndex(e=>(e.a===a&&e.b===b)||(e.a===b&&e.b===a));if(i<0)throw new Error(`No pipe between ${a} and ${b}`);return i};
+const log=$('log');
+function addMsg(cls,text){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+function approval(text){return new Promise(res=>{const d=addMsg('review','');const p=document.createElement('p');p.textContent='Human review needed: '+text;d.appendChild(p);
+ const mk=(t,v,c)=>{const b=document.createElement('button');b.textContent=t;b.className=c;b.style.marginRight='8px';b.onclick=()=>{d.querySelectorAll('button').forEach(x=>x.remove());const s=document.createElement('b');s.textContent=v?'Approved':'Rejected';s.className=v?'ok':'no';d.appendChild(s);res(v)};return b};
+ d.appendChild(mk('Approve',true,'btn'));d.appendChild(mk('Reject',false,'btn ghost'));log.scrollTop=log.scrollHeight})}
+const supplied=A=>['Z1','Z2','Z3'].filter(z=>search('ucs','R',z,A).path).map(z=>z+' '+NODES[z][2]);
+const TOOLS=[
+ {name:'get_network_status',description:'Current network: nodes, every pipe with cost and roughness and whether it is isolated, the selected destination and algorithm, and which zones are still supplied.',inputSchema:{type:'object',properties:{}},
+  execute:()=>({nodes:Object.entries(NODES).map(([id,v])=>id+(v[2]?' ('+v[2]+')':'')),pipes:EDGES.map((e,i)=>({pipe:e.a+'-'+e.b,cost:e.c,roughness:e.f,isolated:closed.has(i)})),destination:goal,algorithm:alg,zones_supplied:supplied(adj())})},
+ {name:'run_search',description:'Find a flow path from reservoir R to a destination with one algorithm and show it on the map.',inputSchema:{type:'object',properties:{algorithm:{type:'string',enum:['bfs','dfs','ucs','greedy','astar1','astar2']},destination:{type:'string',description:'Node id such as Z1, Z2, Z3 or J7'}},required:['algorithm','destination']},
+  execute:({algorithm,destination})=>{const g=setGoal(destination);if(!ALGS.some(a=>a[0]===algorithm))throw new Error('Unknown algorithm');setAlg(algorithm);const r=search(algorithm,'R',g,adj());runOne();compare();return{nodes_expanded:r.order.length,path:r.path,cost:r.path?+r.cost.toFixed(2):null}}},
+ {name:'compare_algorithms',description:'Run all six search algorithms from R to a destination and return nodes expanded, path cost and pipe count for each.',inputSchema:{type:'object',properties:{destination:{type:'string'}},required:['destination']},
+  execute:({destination})=>{const g=setGoal(destination);runOne();compare();const A=adj();return ALGS.map(([id,n])=>{const r=search(id,'R',g,A);return{algorithm:n,expanded:r.order.length,cost:r.path?+r.cost.toFixed(2):null,pipes:r.path?r.path.length-1:null}})}},
+ {name:'check_heuristics',description:'Test whether h1 (Euclidean) and h2 (Manhattan) are admissible for a destination by comparing with the true cost-to-go.',inputSchema:{type:'object',properties:{destination:{type:'string'}},required:['destination']},
+  execute:({destination})=>{const g=setGoal(destination);compare();const A=adj(),hs=hstar(g,A),ns=Object.keys(hs).filter(n=>n!==g);return[['h1 Euclidean',h1(g)],['h2 Manhattan',h2(g)]].map(([n,f])=>({heuristic:n,overestimates_at:ns.filter(x=>f(x)>hs[x]+1e-9),nodes_checked:ns.length}))}},
+ {name:'isolate_pipe',description:'Close the valves at both ends of a pipe to isolate a suspected leak. Risky action: a human reviewer must approve. Returns which zones are still supplied.',inputSchema:{type:'object',properties:{from:{type:'string'},to:{type:'string'},reason:{type:'string'}},required:['from','to','reason']},
+  execute:async({from,to,reason})=>{const i=pipeIdx(from,to);if(closed.has(i))return{status:'already isolated'};const e=EDGES[i];
+   const ok=await approval(`isolate pipe ${e.a}–${e.b}. Reason: ${reason||'not given'}`);if(!ok)return{status:'rejected by human reviewer'};
+   closed.add(i);runOne();compare();return{status:'isolated',pipe:e.a+'-'+e.b,zones_supplied:supplied(adj())}}},
+ {name:'restore_pipes',description:'Reopen every isolated pipe.',inputSchema:{type:'object',properties:{}},execute:()=>{closed.clear();runOne();compare();return{status:'all pipes open'}}},
+ {name:'optimise_valves',description:'Run hill climbing and simulated annealing on the 6-valve x 12-slot schedule and compare with the fixed baseline (all valves at 2/3).',inputSchema:{type:'object',properties:{}},
+  execute:()=>{seed=Math.floor(Math.random()*1e6);optimise();return['base','hc','sa'].map(k=>({method:{base:'baseline',hc:'hill climbing',sa:'simulated annealing'}[k],cost:+sched[k].c.toFixed(1),pressure_targets_met:met(sched[k].x)+'/72'}))}}
+];
+const BRIEF=`You are the AquaGrid agent, helping utility engineers run a water distribution network. Layout: reservoir R → treatment T → junctions J1–J12 → demand zones Z1 (Zone N), Z2 (Zone C), Z3 (Zone S). Pipe cost = length/100 × roughness, in head-loss units. Algorithm ids: bfs, dfs, ucs, greedy (uses h1), astar1 (Euclidean h1, admissible), astar2 (Manhattan h2, may overestimate). Always use tools for facts and never invent numbers. For a reported leak near a junction, inspect the network, pick the pipe, call isolate_pipe with a reason (a human reviewer decides), then confirm which zones are still supplied and the new route. Answer in plain language for engineers, under 130 words, short paragraphs or simple dashes, no headings or tables. Refuse requests unrelated to the network politely.\n\nEngineer: `;
+const SYS=BRIEF.replace(/\n\nEngineer: $/,'');
+const hist=[],gHist=[];let busy=false,sample=null,gKey='',gModel='gemini-3.6-flash';
+const ready=()=>!!(sample||gKey);
+const SUGS=['Which route should water take to Zone S?','Compare all six algorithms for Zone N','Is the Manhattan heuristic admissible for Zone C?','There is a leak near J9 – isolate it but keep Zone C supplied','Optimise tomorrow\'s valve schedule'];
+$('sugs').innerHTML=SUGS.map((s,i)=>`<button class="btn ghost" data-s="${i}">${s}</button>`).join('');
+const setBusy=b=>{busy=b;const off=b||!ready();$('ci').disabled=off;$('cs').disabled=off;$('sugs').querySelectorAll('button').forEach(x=>x.disabled=off)};
+let bot=null;
+async function runTool(name,args){const t=TOOLS.find(x=>x.name===name);if(!t)throw new Error('Unknown tool '+name);
+ addMsg('tool','→ '+name+'('+Object.values(args||{}).filter(v=>typeof v!=='object').join(', ')+')');if(bot)log.appendChild(bot);return t.execute(args||{})}
+const toG=s=>{const o={};for(const k in s){if(k==='type')o.type=String(s[k]).toUpperCase();else if(k==='properties'){o.properties={};for(const p in s[k])o.properties[p]=toG(s[k][p])}else o[k]=s[k]}return o};
+async function gemini(text){
+ const mark=gHist.length;gHist.push({role:'user',parts:[{text}]});
+ const decl=TOOLS.map(t=>{const d={name:t.name,description:t.description};if(Object.keys(t.inputSchema.properties||{}).length)d.parameters=toG(t.inputSchema);return d});
+ try{for(let step=0;step<8;step++){
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(gModel)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':gKey},body:JSON.stringify({systemInstruction:{parts:[{text:SYS}]},contents:gHist,tools:[{functionDeclarations:decl}]})});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error((j.error&&j.error.message)||('HTTP '+r.status));
+  const c=j.candidates&&j.candidates[0]&&j.candidates[0].content;if(!c||!c.parts)throw new Error('Gemini returned no answer. Try rephrasing.');
+  gHist.push(c);const calls=c.parts.filter(p=>p.functionCall);
+  if(!calls.length)return c.parts.filter(p=>p.text&&!p.thought).map(p=>p.text).join('').trim();
+  const parts=[];for(const p of calls){const fc=p.functionCall;let out;try{out=await runTool(fc.name,fc.args)}catch(e){out={error:e.message}}const fr={name:fc.name,response:{result:out}};if(fc.id)fr.id=fc.id;parts.push({functionResponse:fr})}
+  gHist.push({role:'user',parts});
+ }return 'I stopped after several tool calls. Please ask a narrower question.'}
+ catch(e){gHist.length=mark;throw e}
+}
+async function send(text){
+ if(busy||!ready()||!text.trim())return;setBusy(true);addMsg('user',text);
+ bot=addMsg('bot','Thinking…');
+ try{
+  if(sample){hist.push({role:'user',content:text});
+   const tools=TOOLS.map(t=>({...t,execute:inp=>runTool(t.name,inp)}));
+   const input=hist.map((m,i)=>i===0?{role:'user',content:BRIEF+m.content}:m);
+   try{const r=await sample(input,{tools,cache:false,onText:({text})=>{bot.textContent=text;log.scrollTop=log.scrollHeight}});bot.textContent=r.text||'(no answer)';hist.push({role:'assistant',content:bot.textContent})}
+   catch(err){hist.pop();throw err}}
+  else bot.textContent=await gemini(text)||'(no answer)';
+ }catch(err){bot.textContent=err&&err.code==='rate_limited'?'The agent is busy. Wait a moment and try again.':'Something went wrong: '+((err&&err.message)||'unknown error');if(err&&err.code==='not_granted'){sample=null;showKey()}}
+ bot=null;setBusy(false);log.scrollTop=log.scrollHeight;$('ci').focus();
+}
+function showKey(){$('keyrow').hidden=false;$('cnote').textContent=gKey?`Agent powered by ${gModel}. Your key stays in this browser only.`:'Paste a Gemini API key (free from Google AI Studio) to switch the agent on. The key is kept only in this browser and sent only to Google. The planner, comparison and valve scheduler work without it.';setBusy(false)}
+try{gKey=localStorage.getItem('aq_gkey')||'';gModel=localStorage.getItem('aq_gmodel')||gModel}catch(e){}
+$('gm').value=gModel;if(gKey)$('gk').value=gKey;
+$('keyrow').addEventListener('submit',e=>{e.preventDefault();gKey=$('gk').value.trim();gModel=$('gm').value.trim()||'gemini-3.6-flash';try{localStorage.setItem('aq_gkey',gKey);localStorage.setItem('aq_gmodel',gModel)}catch(e){}showKey()});
+$('kclear').addEventListener('click',()=>{gKey='';$('gk').value='';try{localStorage.removeItem('aq_gkey')}catch(e){}showKey()});
+$('cf').addEventListener('submit',e=>{e.preventDefault();const v=$('ci').value;$('ci').value='';send(v)});
+$('sugs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)send(SUGS[+b.dataset.s])});
+addMsg('bot','Hello, I\'m the AquaGrid agent. Ask me about routes, algorithms, leaks or valve schedules. I can run the planner above for you.');
+setBusy(true);$('cnote').textContent='Connecting to the agent…';
+(async()=>{for(let i=0;i<15&&!(window.claude&&window.claude.use);i++)await new Promise(r=>setTimeout(r,100));try{sample=window.claude&&window.claude.use?await window.claude.use('sample'):null}catch(e){sample=null}
+ if(sample){$('cnote').textContent='Your first message asks permission to use Claude. Network data is sample data.';setBusy(false)}else showKey()})();
+}
+</script>
+</body>
+</html>
