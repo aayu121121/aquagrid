@@ -1,0 +1,13 @@
+{
+  "name": "aquagrid",
+  "version": "1.0.0",
+  "description": "AquaGrid: Water Distribution Network Planner – AI agent project (P72)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
