@@ -12,7 +12,13 @@ AquaGrid is an AI agent that helps utility engineers manage water pressure and l
 
 ## Running the agent
 
-The chat agent uses the Gemini API. Paste your own key (free from Google AI Studio) into the key box on the page. It is stored only in your browser's localStorage and is sent only to Google. **Never commit an API key to this repository.**
+The chat agent uses the Gemini API through `api/chat.js`, a Vercel serverless function that keeps the API key on the server. Visitors don't need a key.
+
+1. Import this repo into Vercel (no build settings needed).
+2. In Project → Settings → Environment Variables, add `GEMINI_API_KEY` (free from Google AI Studio). Optionally add `GEMINI_MODEL` (default `gemini-3.6-flash`).
+3. Redeploy.
+
+The function uses a fixed system prompt and forwards only AquaGrid's tools, so it can't be used as a general chatbot. On hosts without the function (GitHub Pages, opening the file locally), the page falls back to a box where you can paste your own key, which stays in your browser. **Never commit an API key to this repository.**
 
 ## Running locally
 
